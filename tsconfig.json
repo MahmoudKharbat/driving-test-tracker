@@ -1,6 +1,13 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
-  }
+    "strict": true,
+    // scripts/*.mts are run directly by Node's type stripping, which requires
+    // imports to carry the literal .ts extension. tsc never emits here (Metro
+    // does the compiling), so allowing the extension costs nothing and keeps
+    // the matcher's assertions inside the typecheck.
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "exclude": ["node_modules", "functions"]
 }

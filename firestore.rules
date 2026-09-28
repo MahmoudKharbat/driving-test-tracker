@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── config ───────────────────────────────────────────────────────────────
+    // Read-only to clients. `config/cities` is a document rather than a
+    // hardcoded constant so a city can be added without an app store release —
+    // that edit is made from the Firebase console or the seed script, using
+    // admin credentials, which bypass these rules.
+    match /config/{document} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ── users ────────────────────────────────────────────────────────────────
+    // A user reads and writes only their own profile. `role` is pinned to
+    // 'tester' so a client cannot promote itself once the Phase 2 teacher role
+    // exists and starts carrying different visibility.
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && request.resource.data.role == 'tester';
+      allow update: if isOwner(uid)
+                    && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    // ── tester data ──────────────────────────────────────────────────────────
+    // Everything the app writes lives under testers/{uid}. Scoping the whole
+    // subtree to its owner from day one is what makes multi-tester and the
+    // Phase 2 role split additive: there is no shared subtree to untangle, and
+    // no path by which one tester could read another's per-teacher grading
+    // record.
+    match /testers/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /teachers/{teacherId} {
+        allow read, write: if isOwner(uid);
+
+        match /tests/{testId} {
+          allow read, write: if isOwner(uid);
+        }
+      }
+
+      // Aggregates are derived data, maintained exclusively by the Cloud
+      // Function on test create/update/delete. The Admin SDK bypasses rules, so
+      // denying client writes costs nothing and prevents a client bug or a
+      // tampered build from silently corrupting the counts the tester relies on.
+      match /teacherStats/{teacherId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+    }
+  }
+}

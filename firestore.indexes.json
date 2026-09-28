@@ -1,0 +1,5 @@
+{
+  "comment": "No composite indexes are required. The teacher list subscribes to the teachers and teacherStats collections and joins, filters, searches and sorts them on the client — a deliberate choice, because sorting by pass rate spans two collections and could not be a server-side query anyway, and because client-side filtering is what lets the list stay fully usable offline. The tests subcollection is only ever ordered by `date`, which Firestore indexes automatically as a single field.",
+  "indexes": [],
+  "fieldOverrides": []
+}

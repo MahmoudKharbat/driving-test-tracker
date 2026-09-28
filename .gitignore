@@ -39,3 +39,13 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase credentials — these identify the project and must not be committed.
+# Both are downloaded per-app from the Firebase console; see README.
+google-services.json
+GoogleService-Info.plist
+# Admin SDK key used by scripts/seed-cities.mjs. Grants full project access.
+service-account*.json
+
+# Cloud Functions build output
+functions/lib/
