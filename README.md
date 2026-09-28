@@ -6,6 +6,19 @@ teacher's pass/fail record with him before the next test.
 
 Hebrew UI, RTL enforced. Android first, iOS from the same codebase.
 
+**Phone-only by default.** Data is saved on the device; there is no login and
+no network use. The Firebase build below — accounts, cloud sync, server-side
+stats — is kept intact behind `EXPO_PUBLIC_BACKEND=firebase` as the planned paid
+sync tier. The ⋯ menu exports every test as CSV; on a phone-only install that
+file is the only backup.
+
+| Command | Backend |
+|---|---|
+| `npm start` | phone-only, in Expo Go |
+| `npm run start:firebase` | Firebase (development build required) |
+
+Everything from **Setup** onwards applies to the Firebase build only.
+
 ---
 
 ## What this fixes
@@ -48,7 +61,7 @@ silently disables itself. This is a known, still-open limitation:
 [firebase-js-sdk#7947](https://github.com/firebase/firebase-js-sdk/issues/7947).
 
 `@react-native-firebase` wraps the native SDKs, where disk persistence is on by
-default. [src/firebase.ts](src/firebase.ts) pins it explicitly so the guarantee
+default. [src/backend/firebase/db.ts](src/backend/firebase/db.ts) pins it explicitly so the guarantee
 is visible in code.
 
 **The cost:** native modules mean **Expo Go will not work**. You need a
@@ -65,7 +78,7 @@ So `await addDoc(...)` would freeze the app in exactly the situation it exists
 for — a save button spinning forever between test centres, while the data had
 already been written to disk.
 
-Every write in [src/data.ts](src/data.ts) is therefore fire-and-forget and
+Every write in [src/backend/firebase/data.ts](src/backend/firebase/data.ts) is therefore fire-and-forget and
 returns synchronously. `createTeacher` generates its document id client-side so
 the new teacher can be selected immediately. What the UI reacts to is the local
 commit, which is synchronous and fires every `onSnapshot` listener at once.
@@ -87,7 +100,7 @@ In the [Firebase console](https://console.firebase.google.com):
 1. Create a project.
 2. **Build → Authentication → Sign-in method → Email/Password → Enable.**
 3. **Build → Firestore Database → Create database.** Pick a location and keep
-   it — `functions/src/index.ts` pins `europe-west1`, so either create the
+   it — `firebase/functions/src/index.ts` pins `europe-west1`, so either create the
    database there or change `setGlobalOptions({ region })` to match.
 4. Register an **Android** app with package name
    `com.mahmoudkharbat.drivingtesttracker`, download `google-services.json`,
@@ -101,14 +114,14 @@ Both files are gitignored.
 
 ```bash
 firebase login
-firebase use --add        # select the project, alias it "default"
+cd firebase && firebase use --add && cd ..   # select the project, alias it "default"
 ```
 
 ### 3. Deploy rules and the aggregation function
 
 ```bash
 npm run deploy:rules
-npm --prefix functions install
+npm --prefix firebase/functions install
 npm run deploy:functions
 ```
 
@@ -129,7 +142,7 @@ To add a city later, pass the full list:
 
 ```bash
 GOOGLE_APPLICATION_CREDENTIALS=./service-account.json \
-  node scripts/seed-cities.mjs "כפר סבא" "אריאל" "חדרה" "פתח תקווה" "נתניה" "הרצליה" "רעננה"
+  npm run seed:cities -- "כפר סבא" "אריאל" "חדרה" "פתח תקווה" "נתניה" "הרצליה" "רעננה"
 ```
 
 ### 5. Build and run
@@ -151,7 +164,7 @@ Automated, and currently passing:
 ```bash
 npm run typecheck        # app — clean
 npm run test:names       # 28 assertions on the duplicate matcher — all pass
-npm --prefix functions run build
+npm run functions:build
 ```
 
 ### Offline verification — not yet done
@@ -178,7 +191,7 @@ written for it, but written is not verified. Run this before trusting it:
 7. Disable airplane mode. **Expect:** within a few seconds the writes flush, the
    function runs, and the badges update to the correct counts.
 
-If step 6 fails, the persistence setting in [src/firebase.ts](src/firebase.ts)
+If step 6 fails, the persistence setting in [src/backend/firebase/db.ts](src/backend/firebase/db.ts)
 is not taking effect — check that it runs before any other Firestore call.
 
 ---
@@ -188,6 +201,7 @@ is not taking effect — check that it runs before any other Firestore call.
 ```
 config/cities                                   { list: string[] }
 users/{uid}                                     { role, name, createdAt }
+testers/{uid}/settings/cities                   { list: string[] }
 testers/{uid}/teachers/{teacherId}              { name, city, createdAt }
 testers/{uid}/teachers/{teacherId}/tests/{id}   { date, result, createdAt }
 testers/{uid}/teacherStats/{teacherId}          { passed, failed, total,
@@ -197,6 +211,10 @@ testers/{uid}/teacherStats/{teacherId}          { passed, failed, total,
 Everything is scoped under `testers/{uid}` from day one, so multi-tester and the
 Phase 2 teacher-role split are additive rather than migrations. `role` is
 present but unused in Phase 1 for the same reason.
+
+The city dropdown is `config/cities` followed by `testers/{uid}/settings/cities`
+— the cities he added from the app. The seeded list stays
+admin-only so one tester can never change another's.
 
 `teacherStats` is maintained **only** by the Cloud Function and is denied to
 clients by the security rules. It replaces the sheet's live `QUERY`/`PIVOT` and
@@ -225,23 +243,31 @@ with a transactional delta plus periodic reconciliation.
 ## Layout
 
 ```
-app/                        expo-router routes
-  _layout.tsx               RTL, Firebase init, auth gate
-  sign-in.tsx
-  (app)/index.tsx           teacher list — replaces the סיכום tab
-  (app)/new-test.tsx        the core loop
-  (app)/teacher/[id].tsx    detail, edit, delete
+app/                          expo-router routes
+  _layout.tsx                 RTL, auth gate
+  sign-in.tsx                 Firebase build only (never shown phone-only)
+  (app)/index.tsx             test summary — replaces the סיכום tab
+  (app)/new-test.tsx          the core loop
+  (app)/add.tsx               one sheet: add a teacher (duplicate guard) or a city
+  (app)/teacher/[id].tsx      detail, edit, delete
 src/
-  firebase.ts               offline persistence + all typed paths
-  auth.tsx                  auth context, users/{uid} bootstrap
-  data.ts                   subscriptions, writes, filter/sort
-  strings.ts                every Hebrew string
-  types.ts                  the schema
-  lib/hebrewName.ts         normalisation + fuzzy matching
-  lib/date.ts
-  components/
-functions/src/index.ts      teacherStats aggregation
-scripts/
+  backend/
+    auth.tsx, data.ts         what screens import; swapped per build
+    contract.ts               typecheck: both backends export the same API
+    local/                    phone-only (default): AsyncStorage, local stats
+    firebase/                 db.ts (offline persistence + typed paths),
+                              auth.tsx, data.ts
+  components/                 ui primitives, icons, Dropdown, pickers
+  lib/                        hebrewName (fuzzy matching), date, cities,
+                              teachers (filter/sort), csv, lastCity
+  strings.ts                  every Hebrew string
+  theme.ts                    colours, spacing, type scale
+  types.ts                    the schema
+firebase/                     Firebase build, server side
+  firebase.json, firestore.rules, firestore.indexes.json
+  functions/src/index.ts      teacherStats aggregation
+  functions/scripts/          seed-cities.mjs (Admin SDK)
+scripts/test-hebrew-name.mts  duplicate-matcher assertions
 ```
 
 ### Notes for future work

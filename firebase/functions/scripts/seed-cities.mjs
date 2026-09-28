@@ -9,10 +9,10 @@
  *
  * Usage:
  *   GOOGLE_APPLICATION_CREDENTIALS=./service-account.json \
- *     node scripts/seed-cities.mjs
+ *     npm run seed:cities
  *
  *   # add or replace the list
- *   node scripts/seed-cities.mjs "כפר סבא" "אריאל" "רעננה"
+ *   npm run seed:cities -- "כפר סבא" "אריאל" "רעננה"
  *
  * The service account key comes from:
  *   Firebase console → Project settings → Service accounts → Generate new

@@ -44,8 +44,9 @@ yarn-error.*
 # Both are downloaded per-app from the Firebase console; see README.
 google-services.json
 GoogleService-Info.plist
-# Admin SDK key used by scripts/seed-cities.mjs. Grants full project access.
+# Admin SDK key used by firebase/functions/scripts/seed-cities.mjs. Grants full
+# project access.
 service-account*.json
 
 # Cloud Functions build output
-functions/lib/
+firebase/functions/lib/

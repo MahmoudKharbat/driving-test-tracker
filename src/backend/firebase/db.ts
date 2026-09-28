@@ -21,8 +21,9 @@ import type {
  *
  * The native SDKs enable disk persistence by default; this call is explicit so
  * the guarantee is visible in code and cannot be silently lost. It must run
- * before any other Firestore interaction, hence the module-level side effect and
- * the import ordering in app/_layout.tsx.
+ * before any other Firestore interaction, hence the module-level side effect:
+ * auth.tsx and data.ts both import this module, so it has run before either
+ * touches Firestore.
  *
  * Consequence for the reader: writes queue on disk while offline and flush on
  * reconnect. Reads are served from cache. He logs tests between test centres on
@@ -49,6 +50,10 @@ type CollRef = CollectionReference;
 
 /** config/cities — read-only to clients, seeded once by script. */
 export const citiesConfigRef = (): DocRef => doc(db, 'config', 'cities');
+
+/** Cities the tester added himself, merged after config/cities in the app. */
+export const testerCitiesRef = (uid: string): DocRef =>
+  doc(db, 'testers', uid, 'settings', 'cities');
 
 export const userRef = (uid: string): DocRef => doc(db, 'users', uid);
 

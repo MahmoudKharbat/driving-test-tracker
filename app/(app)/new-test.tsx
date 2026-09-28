@@ -5,21 +5,17 @@ import { useRouter } from 'expo-router';
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { useUid } from '../../src/auth';
-import { createTeacher, createTest, useCities, useTeachers } from '../../src/data';
+import { useUid } from '../../src/backend/auth';
+import { createTeacher, createTest, useCities, useTeachers } from '../../src/backend/data';
 import { strings } from '../../src/strings';
 import { colors, spacing } from '../../src/theme';
 import { Button, Field, PassFailToggle, SelectRow } from '../../src/components/ui';
 import { PickerSheet } from '../../src/components/PickerSheet';
 import { TeacherPicker } from '../../src/components/TeacherPicker';
 import { endOfToday, formatLongDate, startOfDay } from '../../src/lib/date';
+import { getLastCity, setLastCity } from '../../src/lib/lastCity';
 import type { TestResult } from '../../src/types';
-
-/** Remembering the last city removes two taps from every entry. He works one
- *  test centre at a time, so the previous choice is nearly always right. */
-const LAST_CITY_KEY = 'lastCity';
 
 /**
  * Log a test — the core loop, targeted at under ten seconds.
@@ -37,7 +33,7 @@ export default function NewTestScreen() {
   const uid = useUid();
   const router = useRouter();
 
-  const { cities } = useCities();
+  const { cities } = useCities(uid);
   const { teachers } = useTeachers(uid);
 
   const [city, setCity] = useState<string | null>(null);
@@ -52,7 +48,7 @@ export default function NewTestScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    void AsyncStorage.getItem(LAST_CITY_KEY).then((stored) => {
+    void getLastCity().then((stored) => {
       if (stored) setCity((current) => current ?? stored);
     });
   }, []);
@@ -69,7 +65,7 @@ export default function NewTestScreen() {
 
   const chooseCity = (next: string) => {
     setCity(next);
-    void AsyncStorage.setItem(LAST_CITY_KEY, next);
+    setLastCity(next);
     // The teacher belongs to the old city and is no longer a valid choice.
     setTeacherId(null);
   };
@@ -123,8 +119,16 @@ export default function NewTestScreen() {
         <Field label={strings.newTest.city} error={errors.city}>
           <SelectRow
             value={city}
-            placeholder={strings.newTest.cityPlaceholder}
-            onPress={() => setCityPickerOpen(true)}
+            placeholder={
+              cities.length > 0 ? strings.newTest.cityPlaceholder : strings.newTest.noCities
+            }
+            // A fresh install has no cities; send him to add the first one
+            // rather than open an empty list.
+            onPress={() =>
+              cities.length > 0
+                ? setCityPickerOpen(true)
+                : router.push({ pathname: '/(app)/add', params: { tab: 'city' } })
+            }
             invalid={Boolean(errors.city)}
           />
         </Field>

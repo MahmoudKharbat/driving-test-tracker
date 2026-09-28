@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   addDoc,
+  arrayUnion,
   deleteDoc,
   doc,
   getDocs,
@@ -21,15 +22,12 @@ import {
   teacherStatsCollectionRef,
   teachersRef,
   testRef,
+  testerCitiesRef,
   testsRef,
-} from './firebase';
-import type {
-  TeacherSort,
-  TeacherWithStats,
-  TestResult,
-  TestWithId,
-} from './types';
-import { normalizeName } from './lib/hebrewName';
+} from './db';
+import type { TeacherWithStats, TestResult, TestWithId } from '../../types';
+import { mergeCities, normalizeCityName } from '../../lib/cities';
+import { shareCsv, type ExportRow } from '../../lib/csv';
 
 /** Fallback used only if `config/cities` cannot be read at all — an empty
  *  dropdown would make the app unusable, and these are the six cities in use.
@@ -44,32 +42,48 @@ const FALLBACK_CITIES = [
 ];
 
 /**
- * Cities from `config/cities`.
+ * Cities: the seeded `config/cities` followed by the tester's own additions.
  *
- * A live subscription rather than a one-off read, so adding a city in the
+ * Live subscriptions rather than one-off reads, so adding a city in the
  * console reaches the running app without a restart — and, with persistence on,
- * the last known list is served from cache while offline.
+ * the last known lists are served from cache while offline.
+
  */
-export function useCities(): { cities: string[]; loading: boolean } {
-  const [cities, setCities] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+export function useCities(uid: string): { cities: string[]; loading: boolean } {
+  const [seeded, setSeeded] = useState<string[] | null>(null);
+  const [custom, setCustom] = useState<string[] | null>(null);
 
   useEffect(() => {
-    return onSnapshot(
+    const unsubSeeded = onSnapshot(
       citiesConfigRef(),
       (snap) => {
         const list = snap.exists() ? (snap.data()?.list as string[] | undefined) : undefined;
-        setCities(Array.isArray(list) && list.length ? list : FALLBACK_CITIES);
-        setLoading(false);
+        setSeeded(Array.isArray(list) && list.length ? list : FALLBACK_CITIES);
       },
-      () => {
-        setCities(FALLBACK_CITIES);
-        setLoading(false);
-      },
+      () => setSeeded(FALLBACK_CITIES),
     );
-  }, []);
 
-  return { cities, loading };
+    const unsubCustom = onSnapshot(
+      testerCitiesRef(uid),
+      (snap) => {
+        const list = snap.exists() ? (snap.data()?.list as string[] | undefined) : undefined;
+        setCustom(Array.isArray(list) ? list : []);
+      },
+      () => setCustom([]),
+    );
+
+    return () => {
+      unsubSeeded();
+      unsubCustom();
+    };
+  }, [uid]);
+
+  const cities = useMemo(
+    () => mergeCities(seeded ?? [], custom ?? []),
+    [seeded, custom],
+  );
+
+  return { cities, loading: seeded === null || custom === null };
 }
 
 /**
@@ -192,57 +206,7 @@ export function useTests(
   return { tests, loading };
 }
 
-/** Pass rate as a whole-number percentage; 0 when no tests are recorded. */
-export function passRate(passed: number, total: number): number {
-  return total > 0 ? Math.round((passed / total) * 100) : 0;
-}
-
-/**
- * Apply the search box, the city filter and the sort selector.
- *
- * Search runs over the normalised name, so a query typed without the
- * punctuation or city suffix that happens to be stored in the record still
- * finds it.
- */
-export function filterAndSortTeachers(
-  teachers: TeacherWithStats[],
-  opts: { search: string; city: string | null; sort: TeacherSort; cities: string[] },
-): TeacherWithStats[] {
-  const needle = normalizeName(opts.search, opts.cities);
-
-  const filtered = teachers.filter((t) => {
-    if (opts.city && t.city !== opts.city) return false;
-    if (!needle) return true;
-    return normalizeName(t.name, opts.cities).includes(needle);
-  });
-
-  const byName = (a: TeacherWithStats, b: TeacherWithStats) =>
-    a.name.localeCompare(b.name, 'he');
-
-  return [...filtered].sort((a, b) => {
-    switch (opts.sort) {
-      case 'mostTests':
-        return b.total - a.total || byName(a, b);
-      case 'lowestPassRate':
-        // Teachers with no tests have no rate to speak of; parking them last
-        // keeps the top of the list meaningful rather than filled with 0%.
-        if (a.total === 0 && b.total === 0) return byName(a, b);
-        if (a.total === 0) return 1;
-        if (b.total === 0) return -1;
-        return (
-          passRate(a.passed, a.total) - passRate(b.passed, b.total) || byName(a, b)
-        );
-      case 'recentlyTested': {
-        const at = a.lastTestedAt?.toMillis() ?? -1;
-        const bt = b.lastTestedAt?.toMillis() ?? -1;
-        return bt - at || byName(a, b);
-      }
-      case 'name':
-      default:
-        return byName(a, b);
-    }
-  });
-}
+export { filterAndSortTeachers, passRate } from '../../lib/teachers';
 
 /* ── Writes ───────────────────────────────────────────────────────────────────
  *
@@ -358,8 +322,40 @@ export async function deleteTeacherWithTests(
   );
 }
 
-/** Seed `config/cities` from the app. Used only by the setup script; clients
- *  are denied writes to `config/*` by the security rules. */
-export async function seedCities(cities: string[]): Promise<void> {
-  await setDoc(citiesConfigRef(), { list: cities });
+/**
+ * Add a city to this tester's own list. `arrayUnion` keeps concurrent or
+ * repeated adds from duplicating, and `merge` creates the document on first use.
+ */
+export function addCity(uid: string, city: string): void {
+  void setDoc(
+    testerCitiesRef(uid),
+    { list: arrayUnion(normalizeCityName(city)) },
+    { merge: true },
+  ).catch(onWriteError('addCity'));
+}
+
+/**
+ * Every test as a CSV file, handed to the share sheet.
+ *
+ * Reads each teacher's tests once — an occasional, user-initiated export, not a
+ * substitute for teacherStats. Reads resolve from the local cache offline.
+ */
+export async function exportTestsCsv(uid: string): Promise<void> {
+  const teacherSnap = await getDocs(teachersRef(uid));
+  const rows: ExportRow[] = [];
+  for (const t of teacherSnap.docs) {
+    const teacher = t.data() as { name?: string; city?: string };
+    const testSnap = await getDocs(testsRef(uid, t.id));
+    for (const d of testSnap.docs) {
+      const test = d.data() as { date?: Timestamp; result?: TestResult };
+      if (!test.date || !test.result) continue;
+      rows.push({
+        date: test.date.toDate(),
+        teacher: String(teacher.name ?? ''),
+        city: String(teacher.city ?? ''),
+        result: test.result,
+      });
+    }
+  }
+  await shareCsv(rows);
 }

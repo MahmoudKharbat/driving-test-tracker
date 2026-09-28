@@ -6,7 +6,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 
-import { useUid } from '../../../src/auth';
+import { useUid } from '../../../src/backend/auth';
 import {
   deleteTeacherWithTests,
   deleteTest,
@@ -14,7 +14,7 @@ import {
   updateTest,
   useTeachers,
   useTests,
-} from '../../../src/data';
+} from '../../../src/backend/data';
 import { strings } from '../../../src/strings';
 import { colors, radius, spacing } from '../../../src/theme';
 import {

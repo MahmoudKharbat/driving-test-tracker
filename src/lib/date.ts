@@ -27,6 +27,18 @@ export function formatShortDate(date: Date): string {
   }).format(date);
 }
 
+/** e.g. "26.09" — list subtitles, where the year is noise. */
+export function formatDayMonth(date: Date): string {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return `${dd}.${mm}`;
+}
+
+/** e.g. "ספט׳" — the month line of the list's date block. */
+export function formatShortMonth(date: Date): string {
+  return new Intl.DateTimeFormat(LOCALE, { month: 'short' }).format(date);
+}
+
 /** e.g. "יום שישי" */
 export function formatWeekday(date: Date): string {
   return new Intl.DateTimeFormat(LOCALE, { weekday: 'long' }).format(date);

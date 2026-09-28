@@ -12,14 +12,15 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as fbSignOut,
+  sendPasswordResetEmail,
   // v26 exports `User` directly; `FirebaseAuthTypes` was the pre-modular
   // namespace and is gone.
   type User,
 } from '@react-native-firebase/auth';
 import { getDoc, setDoc, serverTimestamp } from '@react-native-firebase/firestore';
 
-import { userRef } from './firebase';
-import { strings } from './strings';
+import { userRef } from './db';
+import { strings } from '../../strings';
 
 /**
  * Email/password auth — chosen over phone OTP because it needs no SMS billing,
@@ -32,9 +33,14 @@ interface AuthState {
   /** True until the first auth state callback fires, so the router does not
    *  flash the sign-in screen at a user who is already signed in. */
   initializing: boolean;
+  /** True in the Firebase build; the phone-only build has no accounts. */
+  accountsEnabled: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Sends Firebase's reset link. Resolves even for unknown addresses on
+   *  projects with email enumeration protection on, which is the point. */
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -121,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       initializing,
+      accountsEnabled: true,
       signIn: async (email, password) => {
         const cred = await signInWithEmailAndPassword(
           getAuth(),
@@ -138,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await ensureUserDoc(cred.user, name.trim()).catch(() => {});
       },
       signOut: () => fbSignOut(getAuth()),
+      resetPassword: (email) => sendPasswordResetEmail(getAuth(), email.trim()),
     }),
     [user, initializing],
   );

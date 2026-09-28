@@ -13,6 +13,7 @@ import {
 
 import { colors, fontSize, radius, spacing } from '../theme';
 import { strings } from '../strings';
+import { ChevronDownIcon } from './icons';
 
 /**
  * Shared primitives.
@@ -149,6 +150,8 @@ export function TextField({
   autoFocus,
   onSubmitEditing,
   invalid,
+  autoComplete,
+  style,
 }: {
   value: string;
   onChangeText: (t: string) => void;
@@ -159,6 +162,8 @@ export function TextField({
   autoFocus?: boolean;
   onSubmitEditing?: () => void;
   invalid?: boolean;
+  autoComplete?: 'email' | 'password' | 'name' | 'off';
+  style?: StyleProp<TextStyle>;
 }) {
   return (
     <TextInput
@@ -172,7 +177,8 @@ export function TextField({
       autoCorrect={false}
       autoFocus={autoFocus}
       onSubmitEditing={onSubmitEditing}
-      style={[styles.input, invalid && styles.inputInvalid]}
+      autoComplete={autoComplete}
+      style={[styles.input, invalid && styles.inputInvalid, style]}
     />
   );
 }
@@ -210,9 +216,7 @@ export function SelectRow({
       >
         {value ?? placeholder}
       </AppText>
-      <AppText size="sm" color={colors.textFaint}>
-        ▾
-      </AppText>
+      <ChevronDownIcon size={18} color={colors.textMuted} />
     </Pressable>
   );
 }
@@ -268,8 +272,13 @@ export function PassFailToggle({
   );
 }
 
-/** Pass-rate badge, e.g. "7/10 · 70%" — the list's replacement for the סיכום tab. */
-export function PassRateBadge({
+/**
+ * Pass rate as a number, the raw fraction, and a bar — e.g. "83%  5/6".
+ *
+ * Replaces a red/amber/green pill whose colour thresholds were never explained
+ * on screen. One accent colour; the bar length carries the comparison.
+ */
+export function PassRateMeter({
   passed,
   total,
   hasStats,
@@ -280,8 +289,8 @@ export function PassRateBadge({
 }) {
   if (!hasStats || total === 0) {
     return (
-      <View style={[styles.badge, { backgroundColor: colors.bg }]}>
-        <AppText size="xs" weight="medium" color={colors.textFaint}>
+      <View style={styles.meter}>
+        <AppText size="sm" color={colors.textFaint}>
           {strings.teachers.noTests}
         </AppText>
       </View>
@@ -289,19 +298,66 @@ export function PassRateBadge({
   }
 
   const rate = Math.round((passed / total) * 100);
-  // Colour tracks the pass rate because scanning for the outliers is the whole
-  // reason he opens this screen.
-  const tone =
-    rate >= 70
-      ? { bg: colors.passFaint, fg: colors.pass }
-      : rate >= 40
-        ? { bg: colors.warnFaint, fg: colors.warnText }
-        : { bg: colors.failFaint, fg: colors.fail };
-
   return (
-    <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-      <AppText size="xs" weight="bold" color={tone.fg}>
-        {`${passed}/${total} · ${rate}%`}
+    <View style={styles.meter}>
+      <View style={styles.meterNumbers}>
+        <AppText size="md" weight="bold">{`${rate}%`}</AppText>
+        {/* LTR so "5/6" never renders as "6/5". */}
+        <Text style={styles.meterFraction}>{`${passed}/${total}`}</Text>
+      </View>
+      <View style={styles.meterTrack}>
+        <View style={[styles.meterFill, { width: `${rate}%` }]} />
+      </View>
+    </View>
+  );
+}
+
+/** Two-or-more-way switch, e.g. מורה / עיר in the add sheet. */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  labelFor,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+  labelFor: (v: T) => string;
+}) {
+  return (
+    <View style={styles.segmented} accessibilityRole="tablist">
+      {options.map((o) => {
+        const selected = o === value;
+        return (
+          <Pressable
+            key={o}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(o)}
+            style={[styles.segment, selected && styles.segmentSelected]}
+          >
+            <AppText
+              size="sm"
+              weight={selected ? 'bold' : 'medium'}
+              color={selected ? colors.text : colors.textMuted}
+              align="center"
+            >
+              {labelFor(o)}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Non-interactive label, e.g. an existing city. Deliberately not a list row,
+ *  so it does not look tappable. */
+export function Tag({ label }: { label: string }) {
+  return (
+    <View style={styles.tag}>
+      <AppText size="sm" color={colors.textMuted}>
+        {label}
       </AppText>
     </View>
   );
@@ -378,10 +434,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badge: {
+  meter: { width: 76, gap: spacing.xs },
+  meterNumbers: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  meterFraction: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    writingDirection: 'ltr',
+  },
+  meterTrack: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  meterFill: { height: 3, borderRadius: 2, backgroundColor: colors.primary },
+  segmented: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: radius.md,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  segment: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentSelected: {
+    backgroundColor: colors.surface,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  tag: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: 6,
     borderRadius: radius.pill,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   empty: {
     padding: spacing.xxl,

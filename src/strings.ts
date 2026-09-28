@@ -7,23 +7,29 @@
  */
 
 export const strings = {
-  appName: 'מבחני נהיגה',
-
   auth: {
     title: 'מבחני נהיגה',
     subtitle: 'מעקב אחר תוצאות מבחנים לפי מורה',
     email: 'אימייל',
     password: 'סיסמה',
+    emailPlaceholder: 'name@example.com',
+    showPassword: 'הצג סיסמה',
+    hidePassword: 'הסתר סיסמה',
+    forgotPassword: 'שכחת סיסמה?',
+    resetSentTitle: 'בדוק את תיבת הדואר',
+    resetSentBody: (email: string) =>
+      `אם קיים חשבון עבור ${email}, נשלח אליו קישור לאיפוס הסיסמה.`,
     name: 'שם מלא',
     signIn: 'כניסה',
     signUp: 'הרשמה',
-    toggleToSignUp: 'אין לך חשבון? הירשם',
-    toggleToSignIn: 'יש לך חשבון? היכנס',
+    noAccount: 'אין לך חשבון?',
+    haveAccount: 'יש לך חשבון?',
     signOut: 'התנתקות',
     signOutConfirmTitle: 'התנתקות',
     signOutConfirmBody: 'להתנתק מהחשבון?',
     errors: {
       emailRequired: 'יש להזין אימייל',
+      emailForReset: 'הזן את האימייל שלך כדי לאפס את הסיסמה',
       emailInvalid: 'כתובת אימייל לא תקינה',
       passwordRequired: 'יש להזין סיסמה',
       passwordTooShort: 'הסיסמה חייבת להכיל לפחות 6 תווים',
@@ -38,25 +44,39 @@ export const strings = {
   },
 
   nav: {
-    teachers: 'מורים',
-    newTest: 'מבחן חדש',
     teacherDetail: 'פרטי מורה',
-    editTest: 'עריכת מבחן',
   },
 
   teachers: {
-    title: 'מורים',
-    search: 'חיפוש מורה',
+    title: 'סיכום מבחנים',
+    search: 'חיפוש',
+    searchPlaceholder: 'חיפוש מורה או עיר',
+    cancelSearch: 'ביטול',
+    more: 'עוד',
     allCities: 'כל הערים',
+    allTeachers: 'כל המורים',
+    results: (n: number) => (n === 1 ? 'תוצאה אחת' : `${n} תוצאות`),
+    noMatch: 'לא נמצא מורה בשם הזה',
+    addTeacherCta: 'הוספת מורה חדש',
+    addMenu: 'הוספת מורה או עיר',
     empty: 'עדיין אין מורים רשומים',
     emptyHint: 'הוסף מבחן ראשון כדי להתחיל',
-    noResults: 'לא נמצאו מורים התואמים לחיפוש',
+    noResults: 'לא נמצאו מורים התואמים לסינון',
     noTests: 'אין מבחנים',
-    sortBy: 'מיון',
+    /** e.g. "אחרון 26.09" */
+    last: (date: string) => `אחרון ${date}`,
+    stats: {
+      passRate: 'הצלחה כוללת',
+      tests: 'מבחנים',
+      teachers: 'מורים',
+      cities: 'ערים',
+    },
+    /** Chip label, kept short so it never wraps: "מיון: תאריך". */
+    sortChip: (label: string) => `מיון: ${label}`,
     sort: {
-      mostTests: 'הכי הרבה מבחנים',
-      lowestPassRate: 'אחוז מעבר נמוך',
-      recentlyTested: 'נבחנו לאחרונה',
+      mostTests: 'מבחנים',
+      lowestPassRate: 'אחוז הצלחה',
+      recentlyTested: 'תאריך',
       name: 'שם',
     },
   },
@@ -79,6 +99,7 @@ export const strings = {
     title: 'מבחן חדש',
     city: 'עיר',
     cityPlaceholder: 'בחר עיר',
+    noCities: 'אין ערים עדיין — הוסף עיר',
     teacher: 'מורה',
     teacherPlaceholder: 'בחר מורה',
     teacherPickCityFirst: 'בחר עיר תחילה',
@@ -92,6 +113,27 @@ export const strings = {
       teacherRequired: 'יש לבחור מורה',
       resultRequired: 'יש לבחור תוצאה',
       dateInFuture: 'לא ניתן לרשום מבחן בתאריך עתידי',
+    },
+  },
+
+  add: {
+    title: 'הוספה',
+    tabs: { teacher: 'מורה', city: 'עיר' },
+    teacherName: 'שם המורה',
+    teacherNamePlaceholder: 'שם פרטי ושם משפחה',
+    city: 'עיר',
+    cityPlaceholder: 'בחר עיר',
+    noCities: 'אין ערים עדיין — הוסף עיר',
+    saveTeacher: 'הוספת מורה',
+    cityName: 'שם העיר',
+    cityNamePlaceholder: 'לדוגמה: רעננה',
+    existingCities: 'כבר קיימות',
+    saveCity: 'הוספת עיר',
+    errors: {
+      teacherNameRequired: 'יש להזין שם מורה',
+      cityRequired: 'יש לבחור עיר',
+      cityNameRequired: 'יש להזין שם עיר',
+      cityExists: 'העיר כבר קיימת ברשימה',
     },
   },
 
@@ -117,6 +159,13 @@ export const strings = {
     cancel: 'ביטול',
   },
 
+  exportCsv: {
+    action: 'ייצוא לאקסל (CSV)',
+    title: 'ייצוא מבחנים',
+    failed: 'הייצוא נכשל. נסה שוב',
+    columns: { date: 'תאריך', teacher: 'מורה', city: 'עיר', result: 'תוצאה' },
+  },
+
   editTest: {
     title: 'עריכת מבחן',
     save: 'שמירת שינויים',
@@ -128,7 +177,6 @@ export const strings = {
   common: {
     cancel: 'ביטול',
     delete: 'מחיקה',
-    save: 'שמירה',
     close: 'סגירה',
     error: 'שגיאה',
   },

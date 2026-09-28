@@ -1,7 +1,7 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 
-import { useAuth } from '../../src/auth';
+import { useAuth } from '../../src/backend/auth';
 import { colors } from '../../src/theme';
 import { strings } from '../../src/strings';
 import { Loading } from '../../src/components/ui';
@@ -24,10 +24,16 @@ export default function AppLayout() {
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Stack.Screen name="index" options={{ title: strings.teachers.title }} />
+      {/* The summary draws its own header: title, search and the overflow
+          menu, laid out for RTL in the screen itself. */}
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen
         name="new-test"
         options={{ title: strings.newTest.title, presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="add"
+        options={{ presentation: 'modal', headerShown: false }}
       />
       <Stack.Screen
         name="teacher/[id]"

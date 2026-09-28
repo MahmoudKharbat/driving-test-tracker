@@ -1,15 +1,10 @@
-// Must be imported before anything else touches Firestore: the module calls
-// initializeFirestore to pin offline persistence on, and that call is only
-// legal before the first Firestore interaction.
-import '../src/firebase';
-
 import React, { useEffect } from 'react';
 import { I18nManager } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AuthProvider, useAuth } from '../src/auth';
+import { AuthProvider, useAuth } from '../src/backend/auth';
 import { colors } from '../src/theme';
 import { Loading } from '../src/components/ui';
 
@@ -81,6 +76,9 @@ export default function RootLayout() {
   );
 }
 
+// The app itself is the base of the stack. With 'sign-in' here the phone-only
+// build — which never shows it — would leave it underneath, one back-swipe away.
+// The Firebase build still reaches it through the redirect above.
 export const unstable_settings = {
-  initialRouteName: 'sign-in',
+  initialRouteName: '(app)',
 };

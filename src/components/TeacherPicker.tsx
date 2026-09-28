@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, radius, spacing } from '../theme';
 import { strings } from '../strings';
-import { AppText, Button, EmptyState, PassRateBadge, TextField } from './ui';
+import { AppText, Button, EmptyState, PassRateMeter, TextField } from './ui';
 import {
   findDuplicateCandidates,
   normalizeName,
@@ -193,7 +193,7 @@ export function TeacherPicker({
                         : strings.teacherPicker.noTests}
                     </AppText>
                   </View>
-                  <PassRateBadge
+                  <PassRateMeter
                     passed={item.passed}
                     total={item.total}
                     hasStats={item.hasStats}
@@ -214,8 +214,11 @@ export function TeacherPicker({
  * The test count is shown because it is the evidence the tester needs: a near
  * match carrying 40 tests is almost certainly the man he means, while one
  * carrying none is more likely a duplicate he created by mistake earlier.
+ *
+ * Also used by the add sheet, so both paths to creating a teacher ask
+ * the same question.
  */
-function DuplicatePrompt({
+export function DuplicatePrompt({
   name,
   candidates,
   onUseExisting,
@@ -225,7 +228,9 @@ function DuplicatePrompt({
   name: string;
   candidates: DuplicateCandidate<TeacherWithStats>[];
   onUseExisting: (teacherId: string) => void;
-  onCreateAnyway: () => void;
+  /** Omitted when the name matches an existing teacher exactly — creating it
+   *  then could only be the duplicate. */
+  onCreateAnyway?: () => void;
   onCancel: () => void;
 }) {
   return (
@@ -264,7 +269,7 @@ function DuplicatePrompt({
                   : strings.teacherPicker.noTests}
               </AppText>
             </View>
-            <PassRateBadge
+            <PassRateMeter
               passed={teacher.passed}
               total={teacher.total}
               hasStats={teacher.hasStats}
@@ -274,7 +279,9 @@ function DuplicatePrompt({
       </View>
 
       <View style={styles.promptActions}>
-        <Button label={strings.duplicateGuard.createAnyway(name)} onPress={onCreateAnyway} variant="secondary" />
+        {onCreateAnyway ? (
+          <Button label={strings.duplicateGuard.createAnyway(name)} onPress={onCreateAnyway} variant="secondary" />
+        ) : null}
         <Button label={strings.duplicateGuard.cancel} onPress={onCancel} variant="ghost" />
       </View>
     </View>
