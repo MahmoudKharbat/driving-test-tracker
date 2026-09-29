@@ -79,6 +79,15 @@ export const strings = {
       recentlyTested: 'תאריך',
       name: 'שם',
     },
+    /** Direction chip: [natural order, reversed]. */
+    order: {
+      mostTests: ['רב ← מעט', 'מעט ← רב'],
+      lowestPassRate: ['נמוך ← גבוה', 'גבוה ← נמוך'],
+      recentlyTested: ['חדש ← ישן', 'ישן ← חדש'],
+      name: ['א ← ת', 'ת ← א'],
+    },
+    reverseOrder: 'היפוך סדר המיון',
+    allTime: 'כל הזמנים',
   },
 
   teacherDetail: {
@@ -128,6 +137,9 @@ export const strings = {
     cityName: 'שם העיר',
     cityNamePlaceholder: 'לדוגמה: רעננה',
     existingCities: 'כבר קיימות',
+    /** Shown in the sheet after a save, which stays open for the next one. */
+    added: (name: string) => `נוסף: ${name}`,
+    existingChosen: (name: string) => `${name} כבר קיים — לא נוסף מורה חדש`,
     saveCity: 'הוספת עיר',
     errors: {
       teacherNameRequired: 'יש להזין שם מורה',

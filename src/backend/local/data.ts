@@ -2,9 +2,10 @@ import { useMemo, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Timestamp } from '@react-native-firebase/firestore';
 
-import type { TeacherWithStats, TestResult, TestWithId } from '../../types';
+import type { MonthStats, TeacherWithStats, TestResult, TestWithId } from '../../types';
 import { mergeCities, normalizeCityName } from '../../lib/cities';
 import { shareCsv } from '../../lib/csv';
+import { monthKey } from '../../lib/period';
 
 export { filterAndSortTeachers, passRate } from '../../lib/teachers';
 
@@ -184,6 +185,17 @@ export function useTeachers(_uid: string): {
           (acc, x) => (acc === null || x.date > acc ? x.date : acc),
           null,
         );
+        const months: Record<string, { passed: number; failed: number; last: number }> = {};
+        for (const x of own) {
+          const m = (months[monthKey(new Date(x.date))] ??= { passed: 0, failed: 0, last: x.date });
+          if (x.result === 'pass') m.passed++;
+          else m.failed++;
+          if (x.date > m.last) m.last = x.date;
+        }
+        const byMonth: Record<string, MonthStats> = {};
+        for (const [key, m] of Object.entries(months)) {
+          byMonth[key] = { passed: m.passed, failed: m.failed, lastTestedAt: ts(m.last) };
+        }
         return {
           id: t.id,
           name: t.name,
@@ -195,6 +207,7 @@ export function useTeachers(_uid: string): {
           lastTestedAt: last === null ? null : ts(last),
           // Always current: there is no aggregation step to wait for.
           hasStats: true,
+          byMonth,
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

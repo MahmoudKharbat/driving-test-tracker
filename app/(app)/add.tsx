@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useUid } from '../../src/backend/auth';
 import { addCity, createTeacher, useCities, useTeachers } from '../../src/backend/data';
 import { strings } from '../../src/strings';
-import { colors, spacing } from '../../src/theme';
+import { colors, radius, spacing } from '../../src/theme';
 import {
   AppText,
   Button,
@@ -16,7 +16,7 @@ import {
   Tag,
   TextField,
 } from '../../src/components/ui';
-import { CloseIcon } from '../../src/components/icons';
+import { CheckIcon, CloseIcon } from '../../src/components/icons';
 import { PickerSheet } from '../../src/components/PickerSheet';
 import { DuplicatePrompt } from '../../src/components/TeacherPicker';
 import { normalizeCityName } from '../../src/lib/cities';
@@ -27,9 +27,12 @@ type Tab = 'teacher' | 'city';
 const TABS: readonly Tab[] = ['teacher', 'city'];
 
 /**
- * One sheet for adding a teacher or a city — the two tasks are nearly the same
- * shape, so they share a grabber, a close button, and a segmented switch rather
- * than living behind two header buttons.
+ * One sheet for adding a teacher or a city. It stays open after each save —
+ * the field clears and a confirmation line shows — so a run of teachers for one
+ * test centre is typed back to back; the close button ends it.
+ *
+ * The two tasks are nearly the same shape, so they share a grabber, a close
+ * button, and a segmented switch rather than living behind two header buttons.
  *
  * Params: `tab` picks the starting side; `name` pre-fills the teacher name (the
  * search screen's "add teacher" passes what he had typed).
@@ -49,6 +52,14 @@ export default function AddScreen() {
   const [teacherName, setTeacherName] = useState(params.name ?? '');
   const [teacherCity, setTeacherCity] = useState<string | null>(null);
   const [cityDetour, setCityDetour] = useState(false);
+  // The sheet stays open after a save so he can add the next one; this line
+  // confirms what was just added.
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const switchTab = (next: Tab) => {
+    setNotice(null);
+    setTab(next);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -71,36 +82,49 @@ export default function AddScreen() {
         <Segmented
           options={TABS}
           value={tab}
-          onChange={setTab}
+          onChange={switchTab}
           labelFor={(t) => strings.add.tabs[t]}
         />
       </View>
+
+      {notice ? (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <CheckIcon size={18} color={colors.pass} />
+          <AppText size="sm" weight="medium" color={colors.pass} style={styles.flex}>
+            {notice}
+          </AppText>
+        </View>
+      ) : null}
 
       {tab === 'teacher' ? (
         <TeacherForm
           uid={uid}
           name={teacherName}
-          onChangeName={setTeacherName}
+          onChangeName={(n) => {
+            setTeacherName(n);
+            setNotice(null);
+          }}
           city={teacherCity}
           onChangeCity={setTeacherCity}
           onNeedCity={() => {
             setCityDetour(true);
-            setTab('city');
+            switchTab('city');
           }}
+          onNotice={setNotice}
         />
       ) : (
         <CityForm
           uid={uid}
+          onTyping={() => setNotice(null)}
           onAdded={(city) => {
             // Came here only to create the teacher's city: go back to the
-            // teacher with it selected. Otherwise adding a city was the task.
+            // teacher with it selected. Otherwise stay for the next city.
             if (cityDetour) {
               setTeacherCity(city);
               setCityDetour(false);
               setTab('teacher');
-            } else {
-              router.back();
             }
+            setNotice(strings.add.added(city));
           }}
         />
       )}
@@ -115,6 +139,7 @@ function TeacherForm({
   city,
   onChangeCity: setCity,
   onNeedCity,
+  onNotice,
 }: {
   uid: string;
   name: string;
@@ -122,8 +147,8 @@ function TeacherForm({
   city: string | null;
   onChangeCity: (city: string | null) => void;
   onNeedCity: () => void;
+  onNotice: (message: string) => void;
 }) {
-  const router = useRouter();
   const { cities } = useCities(uid);
   const { teachers } = useTeachers(uid);
 
@@ -163,7 +188,10 @@ function TeacherForm({
     // local cache at once, which is all the list screen needs.
     createTeacher(uid, trimmed, city);
     setLastCity(city);
-    router.back();
+    // Stay on the sheet, ready for the next teacher in the same city.
+    setChecking(false);
+    setName('');
+    onNotice(strings.add.added(trimmed));
   };
 
   /** Check before writing. Candidates found → ask; none → create straight away. */
@@ -186,7 +214,14 @@ function TeacherForm({
       <DuplicatePrompt
         name={trimmed}
         candidates={candidates}
-        onUseExisting={(id) => router.replace(`/(app)/teacher/${id}`)}
+        onUseExisting={(id) => {
+          // He meant the existing teacher: nothing to add. Clear the field and
+          // say so, rather than leave the sheet.
+          const existing = teachersInCity.find((t) => t.id === id);
+          setChecking(false);
+          setName('');
+          onNotice(strings.add.existingChosen(existing?.name ?? trimmed));
+        }}
         onCreateAnyway={hasExact ? undefined : create}
         onCancel={() => setChecking(false)}
       />
@@ -231,7 +266,15 @@ function TeacherForm({
   );
 }
 
-function CityForm({ uid, onAdded }: { uid: string; onAdded: (city: string) => void }) {
+function CityForm({
+  uid,
+  onAdded,
+  onTyping,
+}: {
+  uid: string;
+  onAdded: (city: string) => void;
+  onTyping: () => void;
+}) {
   const { cities } = useCities(uid);
 
   const [name, setName] = useState('');
@@ -249,6 +292,7 @@ function CityForm({ uid, onAdded }: { uid: string; onAdded: (city: string) => vo
     }
     // Not awaited — the local cache updates every city list at once.
     addCity(uid, city);
+    setName('');
     onAdded(city);
   };
 
@@ -259,6 +303,7 @@ function CityForm({ uid, onAdded }: { uid: string; onAdded: (city: string) => vo
           value={name}
           onChangeText={(t) => {
             setName(t);
+            onTyping();
             if (error) setError(null);
           }}
           placeholder={strings.add.cityNamePlaceholder}
@@ -313,6 +358,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabs: { paddingHorizontal: spacing.xl, paddingBottom: spacing.lg },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.passFaint,
+  },
   form: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl, gap: spacing.lg },
   existing: { gap: spacing.sm },
   tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

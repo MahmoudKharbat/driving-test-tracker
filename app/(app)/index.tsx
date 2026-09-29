@@ -5,6 +5,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -35,11 +36,18 @@ import {
   MoreIcon,
   PlusIcon,
   SearchIcon,
+  SortIcon,
   UserPlusIcon,
 } from '../../src/components/icons';
 import { Dropdown } from '../../src/components/Dropdown';
 import { formatDayMonth, formatShortMonth } from '../../src/lib/date';
 import { normalizeName } from '../../src/lib/hebrewName';
+import {
+  applyPeriod,
+  periodLabel,
+  periodOptions,
+  type Period,
+} from '../../src/lib/period';
 import type { TeacherSort, TeacherWithStats } from '../../src/types';
 
 const SORTS: readonly TeacherSort[] = [
@@ -79,10 +87,21 @@ export default function SummaryScreen() {
   const [query, setQuery] = useState('');
   const [city, setCity] = useState<string | null>(null);
   const [sort, setSort] = useState<TeacherSort>('mostTests');
+  const [reversed, setReversed] = useState(false);
+  const [period, setPeriod] = useState<Period>('all');
+
+  // The month/year filter belongs to the date sort; under any other sort it is
+  // hidden and set aside (kept, so switching back restores it).
+  const byDate = sort === 'recentlyTested';
+  const activePeriod: Period = byDate ? period : 'all';
+
+  /** Teachers re-counted for the active period — drives the list and totals. */
+  const inPeriod = useMemo(() => applyPeriod(teachers, activePeriod), [teachers, activePeriod]);
+  const periods = useMemo(() => periodOptions(teachers), [teachers]);
 
   const visible = useMemo(
-    () => filterAndSortTeachers(teachers, { search: '', city, sort, cities }),
-    [teachers, city, sort, cities],
+    () => filterAndSortTeachers(inPeriod, { search: '', city, sort, cities, reversed }),
+    [inPeriod, city, sort, cities, reversed],
   );
 
   /** Search matches the teacher's name (normalised, so spelling noise does not
@@ -104,12 +123,15 @@ export default function SummaryScreen() {
   const totals = useMemo(() => {
     let passed = 0;
     let total = 0;
-    for (const t of teachers) {
+    for (const t of inPeriod) {
       passed += t.passed;
       total += t.total;
     }
-    return { passed, total };
-  }, [teachers]);
+    // For a period, count only the cities he actually tested in then.
+    const cityCount =
+      activePeriod === 'all' ? cities.length : new Set(inPeriod.map((t) => t.city)).size;
+    return { passed, total, teachers: inPeriod.length, cities: cityCount };
+  }, [inPeriod, activePeriod, cities]);
 
   const cityOptions = useMemo(() => [ALL_CITIES, ...cities], [cities]);
 
@@ -247,8 +269,6 @@ export default function SummaryScreen() {
     );
   }
 
-  const byDate = sort === 'recentlyTested';
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* Title centred; under RTL the row runs right-to-left, so search sits
@@ -277,11 +297,18 @@ export default function SummaryScreen() {
           label={strings.teachers.stats.passRate}
         />
         <Stat value={String(totals.total)} label={strings.teachers.stats.tests} />
-        <Stat value={String(teachers.length)} label={strings.teachers.stats.teachers} />
-        <Stat value={String(cities.length)} label={strings.teachers.stats.cities} />
+        <Stat value={String(totals.teachers)} label={strings.teachers.stats.teachers} />
+        <Stat value={String(totals.cities)} label={strings.teachers.stats.cities} />
       </View>
 
-      <View style={styles.chipRow}>
+      {/* Scrolls sideways: with the date sort there are four chips, more than a
+          narrow phone fits. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipScroll}
+        contentContainerStyle={styles.chipRow}
+      >
         <Dropdown
           options={cityOptions}
           selected={city ?? ALL_CITIES}
@@ -310,7 +337,30 @@ export default function SummaryScreen() {
             />
           )}
         </Dropdown>
-      </View>
+        <Chip
+          label={strings.teachers.order[sort][reversed ? 1 : 0]}
+          accessibilityLabel={strings.teachers.reverseOrder}
+          icon={<SortIcon size={14} color={colors.text} />}
+          active={false}
+          onPress={() => setReversed((r) => !r)}
+        />
+        {byDate ? (
+          <Dropdown
+            options={periods}
+            selected={period}
+            labelFor={(p) => periodLabel(p, strings.teachers.allTime)}
+            onSelect={setPeriod}
+          >
+            {(open) => (
+              <Chip
+                label={periodLabel(period, strings.teachers.allTime)}
+                active={period !== 'all'}
+                onPress={open}
+              />
+            )}
+          </Dropdown>
+        ) : null}
+      </ScrollView>
 
       {loading ? (
         <Loading />
@@ -443,19 +493,26 @@ function IconButton({
   );
 }
 
+/** Filter pill. With `icon` it is a toggle (icon, no chevron); without, it
+ *  opens a menu (chevron). */
 function Chip({
   label,
   active,
   onPress,
+  icon,
+  accessibilityLabel,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  icon?: React.ReactNode;
+  accessibilityLabel?: string;
 }) {
   const color = active ? colors.primary : colors.text;
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
@@ -463,10 +520,11 @@ function Chip({
         pressed && styles.pressed,
       ]}
     >
+      {icon}
       <AppText size="sm" weight="medium" color={color} numberOfLines={1}>
         {label}
       </AppText>
-      <ChevronDownIcon size={12} color={color} />
+      {icon ? null : <ChevronDownIcon size={12} color={color} />}
     </Pressable>
   );
 }
@@ -505,6 +563,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   stat: { flex: 1, gap: 2 },
+  chipScroll: { flexGrow: 0 },
   chipRow: {
     flexDirection: 'row',
     gap: spacing.sm,

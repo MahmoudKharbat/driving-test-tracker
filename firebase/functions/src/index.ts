@@ -13,6 +13,26 @@ const db = getFirestore();
 setGlobalOptions({ region: 'europe-west1', maxInstances: 10 });
 
 /**
+ * "2026-09" for a test date, in Israel time. Dates are stored as local midnight
+ * in Israel, which is the previous evening in UTC — a UTC month would file every
+ * test on the 1st under the month before.
+ */
+const monthFormat = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jerusalem',
+  year: 'numeric',
+  month: '2-digit',
+});
+function monthKey(date: Timestamp): string {
+  return monthFormat.format(date.toDate()).slice(0, 7);
+}
+
+interface MonthStats {
+  passed: number;
+  failed: number;
+  lastTestDate: Timestamp;
+}
+
+/**
  * Maintain `testers/{uid}/teacherStats/{teacherId}`.
  *
  * This replaces the spreadsheet's live QUERY/PIVOT — the one thing the tester
@@ -70,11 +90,13 @@ export const updateTeacherStats = onDocumentWritten(
     let passed = 0;
     let failed = 0;
     let lastTestDate: Timestamp | null = null;
+    const byMonth: Record<string, MonthStats> = {};
 
     for (const doc of snap.docs) {
       const data = doc.data();
 
-      if (data.result === 'pass') passed++;
+      const isPass = data.result === 'pass';
+      if (isPass) passed++;
       else if (data.result === 'fail') failed++;
       else {
         // Neither enum value. Counting it would quietly distort the record the
@@ -89,9 +111,18 @@ export const updateTeacherStats = onDocumentWritten(
       }
 
       const date = data.date as Timestamp | undefined;
-      if (date && (!lastTestDate || date.toMillis() > lastTestDate.toMillis())) {
+      if (!date) continue;
+      if (!lastTestDate || date.toMillis() > lastTestDate.toMillis()) {
         lastTestDate = date;
       }
+
+      // Per-month buckets back the list's month/year filter, so filtering never
+      // means reading tests on the client.
+      const key = monthKey(date);
+      const month = (byMonth[key] ??= { passed: 0, failed: 0, lastTestDate: date });
+      if (isPass) month.passed++;
+      else month.failed++;
+      if (date.toMillis() > month.lastTestDate.toMillis()) month.lastTestDate = date;
     }
 
     const total = passed + failed;
@@ -106,19 +137,19 @@ export const updateTeacherStats = onDocumentWritten(
       return;
     }
 
-    await statsRef.set(
-      {
-        passed,
-        failed,
-        total,
-        // Not in the original spec's field list. It is additive derived data,
-        // and it is what makes the list's "recently tested" sort mean the date
-        // of the most recent test rather than the moment a row was last edited.
-        lastTestDate,
-        updatedAt: Timestamp.now(),
-      },
-      { merge: true },
-    );
+    // A full replace, not a merge: merging would deep-merge `byMonth` and keep
+    // a month bucket alive after its last test was moved or deleted.
+    await statsRef.set({
+      passed,
+      failed,
+      total,
+      // Not in the original spec's field list. It is additive derived data,
+      // and it is what makes the list's "recently tested" sort mean the date
+      // of the most recent test rather than the moment a row was last edited.
+      lastTestDate,
+      byMonth,
+      updatedAt: Timestamp.now(),
+    });
 
     logger.info('Updated teacherStats', { uid, teacherId, passed, failed, total });
   },

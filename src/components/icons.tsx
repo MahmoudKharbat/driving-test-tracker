@@ -78,6 +78,15 @@ export function ChevronDownIcon(p: IconProps) {
   );
 }
 
+/** Up and down arrows — the sort-direction toggle. */
+export function SortIcon(p: IconProps) {
+  return (
+    <Stroke width={1.8} {...p}>
+      <Path d="M8 4v16M4.5 7.5L8 4l3.5 3.5M16 20V4M12.5 16.5L16 20l3.5-3.5" />
+    </Stroke>
+  );
+}
+
 export function CheckIcon(p: IconProps) {
   return (
     <Stroke width={2} {...p}>

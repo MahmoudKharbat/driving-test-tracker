@@ -25,7 +25,7 @@ import {
   testerCitiesRef,
   testsRef,
 } from './db';
-import type { TeacherWithStats, TestResult, TestWithId } from '../../types';
+import type { MonthStats, TeacherWithStats, TestResult, TestWithId } from '../../types';
 import { mergeCities, normalizeCityName } from '../../lib/cities';
 import { shareCsv, type ExportRow } from '../../lib/csv';
 
@@ -108,7 +108,13 @@ export function useTeachers(uid: string): {
   const [stats, setStats] = useState<
     Record<
       string,
-      { passed: number; failed: number; total: number; lastTestDate: Timestamp | null }
+      {
+        passed: number;
+        failed: number;
+        total: number;
+        lastTestDate: Timestamp | null;
+        byMonth: Record<string, MonthStats>;
+      }
     >
   >({});
   const [teachersLoaded, setTeachersLoaded] = useState(false);
@@ -137,10 +143,7 @@ export function useTeachers(uid: string): {
     const unsubStats = onSnapshot(
       teacherStatsCollectionRef(uid),
       (snap) => {
-        const next: Record<
-          string,
-          { passed: number; failed: number; total: number; lastTestDate: Timestamp | null }
-        > = {};
+        const next: typeof stats = {};
         for (const d of snap.docs) {
           const data = d.data() as Record<string, unknown>;
           next[d.id] = {
@@ -148,6 +151,7 @@ export function useTeachers(uid: string): {
             failed: Number(data.failed ?? 0),
             total: Number(data.total ?? 0),
             lastTestDate: (data.lastTestDate as Timestamp | undefined) ?? null,
+            byMonth: readByMonth(data.byMonth),
           };
         }
         setStats(next);
@@ -173,12 +177,30 @@ export function useTeachers(uid: string): {
           total: s?.total ?? 0,
           lastTestedAt: s?.lastTestDate ?? null,
           hasStats: Boolean(s),
+          byMonth: s?.byMonth ?? {},
         };
       }),
     [rawTeachers, stats],
   );
 
   return { teachers, loading: !teachersLoaded || !statsLoaded };
+}
+
+/** `byMonth` from a teacherStats document. Absent on documents written before
+ *  it existed; those fill in on the teacher's next test write. */
+function readByMonth(raw: unknown): Record<string, MonthStats> {
+  const out: Record<string, MonthStats> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [key, value] of Object.entries(raw as Record<string, Record<string, unknown>>)) {
+    const last = value?.lastTestDate as Timestamp | undefined;
+    if (!last) continue;
+    out[key] = {
+      passed: Number(value.passed ?? 0),
+      failed: Number(value.failed ?? 0),
+      lastTestedAt: last,
+    };
+  }
+  return out;
 }
 
 /** Chronological test history for one teacher, newest first. */

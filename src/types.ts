@@ -73,7 +73,17 @@ export interface TeacherStats {
   passed: number;
   failed: number;
   total: number;
+  lastTestDate: Timestamp;
+  /** Keyed "2026-09" (Israel time). Backs the list's month/year filter. */
+  byMonth: Record<string, { passed: number; failed: number; lastTestDate: Timestamp }>;
   updatedAt: Timestamp;
+}
+
+/** One month of a teacher's record, keyed "2026-09" in `byMonth`. */
+export interface MonthStats {
+  passed: number;
+  failed: number;
+  lastTestedAt: Timestamp;
 }
 
 /** A teacher joined to its stats doc, as the list and detail screens consume it. */
@@ -91,6 +101,8 @@ export interface TeacherWithStats {
    *  aggregation is still in flight). Lets the UI distinguish "0 tests" from
    *  "not counted yet". */
   hasStats: boolean;
+  /** The same record split by month, for the month/year filter. */
+  byMonth: Record<string, MonthStats>;
 }
 
 export interface TestWithId extends Test {
