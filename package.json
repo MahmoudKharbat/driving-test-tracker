@@ -1,6 +1,6 @@
 {
   "name": "driving-test-tracker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -12,6 +12,7 @@
     "expo-build-properties": "~57.0.8",
     "expo-constants": "~57.0.9",
     "expo-dev-client": "~57.0.10",
+    "expo-document-picker": "~57.0.3",
     "expo-file-system": "~57.0.7",
     "expo-linking": "~57.0.5",
     "expo-localization": "~57.0.1",
@@ -23,7 +24,8 @@
     "react-native": "0.86.2",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
@@ -39,6 +41,7 @@
     "prebuild": "expo prebuild --clean",
     "typecheck": "tsc --noEmit",
     "test:names": "node --no-warnings --experimental-strip-types scripts/test-hebrew-name.mts",
+    "test:import": "node --no-warnings --experimental-strip-types scripts/test-import.mts",
     "seed:cities": "node firebase/functions/scripts/seed-cities.mjs",
     "functions:build": "npm --prefix firebase/functions run build",
     "deploy:rules": "cd firebase && firebase deploy --only firestore:rules",

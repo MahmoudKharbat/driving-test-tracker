@@ -109,4 +109,22 @@ export interface TestWithId extends Test {
   id: string;
 }
 
-export type TeacherSort = 'mostTests' | 'lowestPassRate' | 'recentlyTested' | 'name';
+/**
+ * A spreadsheet import, already cleaned and with every near-duplicate decided
+ * (see src/lib/importSheet.ts). `tempId` ties tests to their teacher; a teacher
+ * with `existingId` is an app teacher the tests are added to.
+ */
+export interface ImportBatch {
+  newCities: string[];
+  teachers: { tempId: string; name: string; city: string; existingId?: string }[];
+  tests: { tempId: string; date: Date; result: TestResult }[];
+}
+
+export interface ImportResult {
+  teachersAdded: number;
+  testsAdded: number;
+  /** Already in the app (same teacher, date and result) — a re-import. */
+  testsSkipped: number;
+}
+
+export type TeacherSort ='mostTests' | 'lowestPassRate' | 'recentlyTested' | 'name';

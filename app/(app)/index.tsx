@@ -151,6 +151,11 @@ export default function SummaryScreen() {
    *  has no account to leave. */
   const openMenu = () => {
     const items = [
+      {
+        label: strings.importSheet.action,
+        run: () => router.push('/(app)/import'),
+        destructive: false,
+      },
       { label: strings.exportCsv.action, run: exportCsv, destructive: false },
       ...(accountsEnabled
         ? [{ label: strings.auth.signOut, run: confirmSignOut, destructive: true }]
@@ -168,14 +173,23 @@ export default function SummaryScreen() {
         (index) => items[index]?.run(),
       );
     } else {
-      Alert.alert(strings.teachers.more, undefined, [
-        ...items.map((i) => ({
-          text: i.label,
-          style: i.destructive ? ('destructive' as const) : ('default' as const),
-          onPress: i.run,
-        })),
-        { text: strings.common.cancel, style: 'cancel' as const },
-      ]);
+      // Android alerts show at most three buttons; with three items the cancel
+      // button gives way, and a tap outside dismisses instead.
+      Alert.alert(
+        strings.teachers.more,
+        undefined,
+        [
+          ...items.map((i) => ({
+            text: i.label,
+            style: i.destructive ? ('destructive' as const) : ('default' as const),
+            onPress: i.run,
+          })),
+          ...(items.length < 3
+            ? [{ text: strings.common.cancel, style: 'cancel' as const }]
+            : []),
+        ],
+        { cancelable: true },
+      );
     }
   };
 

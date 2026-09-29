@@ -25,7 +25,14 @@ import {
   testerCitiesRef,
   testsRef,
 } from './db';
-import type { MonthStats, TeacherWithStats, TestResult, TestWithId } from '../../types';
+import type {
+  ImportBatch,
+  ImportResult,
+  MonthStats,
+  TeacherWithStats,
+  TestResult,
+  TestWithId,
+} from '../../types';
 import { mergeCities, normalizeCityName } from '../../lib/cities';
 import { shareCsv, type ExportRow } from '../../lib/csv';
 
@@ -354,6 +361,80 @@ export function addCity(uid: string, city: string): void {
     { list: arrayUnion(normalizeCityName(city)) },
     { merge: true },
   ).catch(onWriteError('addCity'));
+}
+
+/**
+ * Write a cleaned spreadsheet import.
+ *
+ * Existing teachers' tests are read first (reads resolve from cache offline) so
+ * a re-import skips tests already recorded on the same date with the same
+ * result — once per existing copy, since two students of one teacher on one day
+ * is common. Writes go out in batches and are not awaited, like every other
+ * write here; the Cloud Function recounts stats as the tests land.
+ */
+export async function importBatch(uid: string, batch: ImportBatch): Promise<ImportResult> {
+  const have = new Map<string, number>();
+  for (const t of batch.teachers) {
+    if (!t.existingId) continue;
+    const snap = await getDocs(testsRef(uid, t.existingId));
+    for (const d of snap.docs) {
+      const data = d.data() as { date?: Timestamp; result?: TestResult };
+      if (!data.date || !data.result) continue;
+      const k = `${t.existingId}|${data.date.toMillis()}|${data.result}`;
+      have.set(k, (have.get(k) ?? 0) + 1);
+    }
+  }
+
+  const ops: ((b: ReturnType<typeof writeBatch>) => void)[] = [];
+  const idFor = new Map<string, string>();
+  let teachersAdded = 0;
+  for (const t of batch.teachers) {
+    if (t.existingId) {
+      idFor.set(t.tempId, t.existingId);
+      continue;
+    }
+    const ref = doc(teachersRef(uid));
+    idFor.set(t.tempId, ref.id);
+    ops.push((b) => b.set(ref, { name: t.name.trim(), city: t.city, createdAt: serverTimestamp() }));
+    teachersAdded++;
+  }
+
+  let testsAdded = 0;
+  let testsSkipped = 0;
+  for (const t of batch.tests) {
+    const teacherId = idFor.get(t.tempId);
+    if (!teacherId) continue;
+    const k = `${teacherId}|${t.date.getTime()}|${t.result}`;
+    const n = have.get(k) ?? 0;
+    if (n > 0) {
+      have.set(k, n - 1);
+      testsSkipped++;
+      continue;
+    }
+    const ref = doc(testsRef(uid, teacherId));
+    ops.push((b) =>
+      b.set(ref, { date: Timestamp.fromDate(t.date), result: t.result, createdAt: serverTimestamp() }),
+    );
+    testsAdded++;
+  }
+
+  if (batch.newCities.length) {
+    void setDoc(
+      testerCitiesRef(uid),
+      { list: arrayUnion(...batch.newCities.map(normalizeCityName)) },
+      { merge: true },
+    ).catch(onWriteError('importBatch:cities'));
+  }
+
+  // Batches cap at 500 operations.
+  const CHUNK = 400;
+  for (let i = 0; i < ops.length; i += CHUNK) {
+    const b = writeBatch(db);
+    ops.slice(i, i + CHUNK).forEach((op) => op(b));
+    void b.commit().catch(onWriteError('importBatch'));
+  }
+
+  return { teachersAdded, testsAdded, testsSkipped };
 }
 
 /**

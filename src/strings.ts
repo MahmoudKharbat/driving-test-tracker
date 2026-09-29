@@ -171,6 +171,41 @@ export const strings = {
     cancel: 'ביטול',
   },
 
+  importSheet: {
+    action: 'ייבוא מאקסל',
+    title: 'ייבוא מאקסל',
+    intro:
+      'בחר את קובץ האקסל שבו רשמת את המבחנים (xlsx, xls או csv). הקובץ צריך לכלול עמודות תאריך, עיר, שם מורה ועבר/נכשל.',
+    introSheets: 'אם הקובץ בגוגל שיטס: קובץ ← הורדה ← Microsoft Excel, ואז בחר אותו כאן.',
+    pick: 'בחירת קובץ',
+    reading: 'קורא את הקובץ…',
+    noTable: 'לא נמצאה בקובץ טבלה עם עמודות תאריך, עיר, שם מורה ועבר/נכשל',
+    readFailed: 'לא ניתן לקרוא את הקובץ',
+    summary: (tests: number, teachers: number) => `${tests} מבחנים · ${teachers} מורים`,
+    range: (from: string, to: string) => `מ־${from} עד ${to}`,
+    year: 'שנת המבחן הראשון',
+    yearHint: 'בקובץ אין שנה. השנה מתקדמת מעצמה במעבר מדצמבר לינואר.',
+    skipped: (n: number, rows: string) =>
+      `${n === 1 ? 'שורה אחת דולגה' : `${n} שורות דולגו`} (חסר תאריך, מורה או תוצאה): ${rows}`,
+    citiesTitle: 'ערים',
+    citiesHint: 'אפשר לתקן שם עיר — כל המורים שלה יירשמו תחת השם המתוקן.',
+    cityCount: (n: number) => (n === 1 ? 'מבחן אחד' : `${n} מבחנים`),
+    newCity: 'חדשה',
+    pairsTitle: 'אותו מורה?',
+    pairsHint: 'שמות דומים באותה עיר. רק אתה יודע אם זה אותו אדם — שום דבר לא מאוחד בלי אישורך.',
+    inApp: 'כבר באפליקציה',
+    same: 'אותו מורה',
+    different: 'מורים שונים',
+    undecided: (n: number) => (n === 1 ? 'נותרה החלטה אחת' : `נותרו ${n} החלטות`),
+    run: (n: number) => `ייבוא ${n} מבחנים`,
+    doneTitle: 'הייבוא הושלם',
+    done: (tests: number, teachers: number) =>
+      `נוספו ${tests} מבחנים ו־${teachers} מורים חדשים.`,
+    doneSkipped: (n: number) =>
+      `${n} מבחנים כבר היו באפליקציה ולא נוספו שוב.`,
+    close: 'סיום',
+  },
+
   exportCsv: {
     action: 'ייצוא לאקסל (CSV)',
     title: 'ייצוא מבחנים',

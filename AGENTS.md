@@ -36,6 +36,10 @@ for setup and the data model.
   `findDuplicateCandidates` in [src/lib/hebrewName.ts](src/lib/hebrewName.ts),
   scoped to the selected city. The spreadsheet's split-person defect came back
   the moment this is skipped. Assertions: `npm run test:names`.
+- **The spreadsheet import follows the same two rules.** Names are cleaned of
+  city suffixes by `cleanTeacherName`, and every near match becomes a pair the
+  examiner must answer before the import button enables
+  ([src/lib/importSheet.ts](src/lib/importSheet.ts), `npm run test:import`).
 - **Never auto-merge two teachers.** Always ask. `אור` and `אור פוגל` may be
   two people.
 - **`date` is always a Firestore `Timestamp`.** Never a number, never a string.
@@ -69,7 +73,7 @@ for setup and the data model.
 ## Checks
 
 ```bash
-npm run typecheck && npm run test:names && npm run functions:build
+npm run typecheck && npm run test:names && npm run test:import && npm run functions:build
 ```
 
 The phone-only build runs in Expo Go (`npm start`). The Firebase build requires

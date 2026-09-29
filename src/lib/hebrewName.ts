@@ -71,7 +71,7 @@ const HOMOPHONES: Record<string, string> = {
  * these into the name field; they carry no identity information and must not
  * influence a match.
  */
-const CITY_ALIASES: Record<string, string[]> = {
+export const CITY_ALIASES: Record<string, string[]> = {
   'כפר סבא': ['כ.סבא', 'כ סבא', 'כפ סבא', 'כ"ס', 'כס'],
   'פתח תקווה': ['פ.תקווה', 'פ תקווה', 'פ.ת', 'פתח תקוה', 'פ"ת'],
   נתניה: ['נתניא'],

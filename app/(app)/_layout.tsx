@@ -36,6 +36,10 @@ export default function AppLayout() {
         options={{ presentation: 'modal', headerShown: false }}
       />
       <Stack.Screen
+        name="import"
+        options={{ presentation: 'modal', headerShown: false }}
+      />
+      <Stack.Screen
         name="teacher/[id]"
         options={{ title: strings.nav.teacherDetail }}
       />

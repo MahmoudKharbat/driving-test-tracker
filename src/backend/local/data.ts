@@ -2,7 +2,14 @@ import { useMemo, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Timestamp } from '@react-native-firebase/firestore';
 
-import type { MonthStats, TeacherWithStats, TestResult, TestWithId } from '../../types';
+import type {
+  ImportBatch,
+  ImportResult,
+  MonthStats,
+  TeacherWithStats,
+  TestResult,
+  TestWithId,
+} from '../../types';
 import { mergeCities, normalizeCityName } from '../../lib/cities';
 import { shareCsv } from '../../lib/csv';
 import { monthKey } from '../../lib/period';
@@ -58,6 +65,11 @@ let teachers: StoredTeacher[] = [];
 let customCities: string[] = [];
 let tests: Record<string, StoredTest[]> = {};
 let hydrated = false;
+let markReady: () => void = () => {};
+/** Resolves once storage has loaded — for work that must see existing data. */
+const ready = new Promise<void>((resolve) => {
+  markReady = resolve;
+});
 
 /** Writes made before storage has loaded, replayed once it has — otherwise
  *  the load would overwrite them. */
@@ -120,6 +132,7 @@ async function hydrate() {
     console.warn('[local] loading data failed', error);
   }
   hydrated = true;
+  markReady();
   const queued = pending;
   pending = [];
   queued.forEach((fn) => fn());
@@ -307,6 +320,80 @@ export function addCity(_uid: string, city: string): void {
     customCities = [...customCities, name];
     save(CITIES_KEY, customCities);
   });
+}
+
+/* ── Import ──────────────────────────────────────────────────────────────── */
+
+/**
+ * Write a cleaned spreadsheet import in one step.
+ *
+ * Re-importing the same file must not double the records, so for a teacher who
+ * already has tests, an imported test matching one of his on date and result is
+ * skipped — as many times as he already has it, since two students of one
+ * teacher on one day is common and both are real.
+ */
+export async function importBatch(_uid: string, batch: ImportBatch): Promise<ImportResult> {
+  await ready;
+
+  const now = Date.now();
+  const idFor = new Map<string, string>();
+  const added: StoredTeacher[] = [];
+  for (const t of batch.teachers) {
+    if (t.existingId) {
+      idFor.set(t.tempId, t.existingId);
+    } else {
+      const id = newId();
+      idFor.set(t.tempId, id);
+      added.push({ id, name: t.name.trim(), city: t.city, createdAt: now });
+    }
+  }
+
+  // Existing (teacher, date, result) counts, spent as imported rows match them.
+  const have = new Map<string, number>();
+  for (const [teacherId, list] of Object.entries(tests)) {
+    for (const t of list) {
+      const k = `${teacherId}|${t.date}|${t.result}`;
+      have.set(k, (have.get(k) ?? 0) + 1);
+    }
+  }
+
+  const next: Record<string, StoredTest[]> = {};
+  let testsAdded = 0;
+  let skipped = 0;
+  for (const t of batch.tests) {
+    const teacherId = idFor.get(t.tempId);
+    if (!teacherId) continue;
+    const k = `${teacherId}|${t.date.getTime()}|${t.result}`;
+    const n = have.get(k) ?? 0;
+    if (n > 0) {
+      have.set(k, n - 1);
+      skipped++;
+      continue;
+    }
+    (next[teacherId] ??= [...(tests[teacherId] ?? [])]).push({
+      id: newId(),
+      date: t.date.getTime(),
+      result: t.result,
+      createdAt: now,
+    });
+    testsAdded++;
+  }
+
+  const cities = batch.newCities.map(normalizeCityName).filter((c) => c && !customCities.includes(c));
+
+  mutate(() => {
+    if (cities.length) {
+      customCities = [...customCities, ...cities];
+      save(CITIES_KEY, customCities);
+    }
+    if (added.length) {
+      teachers = [...teachers, ...added];
+      save(TEACHERS_KEY, teachers);
+    }
+    for (const [teacherId, list] of Object.entries(next)) setTests(teacherId, list);
+  });
+
+  return { teachersAdded: added.length, testsAdded, testsSkipped: skipped };
 }
 
 /* ── Export ──────────────────────────────────────────────────────────────── */

@@ -249,6 +249,7 @@ app/                          expo-router routes
   (app)/index.tsx             test summary — replaces the סיכום tab
   (app)/new-test.tsx          the core loop
   (app)/add.tsx               one sheet: add a teacher (duplicate guard) or a city
+  (app)/import.tsx            import the old spreadsheet: review, then write
   (app)/teacher/[id].tsx      detail, edit, delete
 src/
   backend/
@@ -258,8 +259,9 @@ src/
     firebase/                 db.ts (offline persistence + typed paths),
                               auth.tsx, data.ts
   components/                 ui primitives, icons, Dropdown, pickers
-  lib/                        hebrewName (fuzzy matching), date, cities,
-                              teachers (filter/sort), csv, lastCity
+  lib/                        hebrewName (fuzzy matching), importSheet (the
+                              spreadsheet cleaner), date, cities, period,
+                              teachers (filter/sort), csv, readWorkbook, lastCity
   strings.ts                  every Hebrew string
   theme.ts                    colours, spacing, type scale
   types.ts                    the schema
@@ -268,6 +270,7 @@ firebase/                     Firebase build, server side
   functions/src/index.ts      teacherStats aggregation
   functions/scripts/          seed-cities.mjs (Admin SDK)
 scripts/test-hebrew-name.mts  duplicate-matcher assertions
+scripts/test-import.mts       spreadsheet-import assertions (real rows)
 ```
 
 ### Notes for future work
