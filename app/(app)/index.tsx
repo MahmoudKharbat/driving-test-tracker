@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 
 import { useAuth, useUid } from '../../src/backend/auth';
 import {
@@ -49,6 +50,9 @@ const SORTS: readonly TeacherSort[] = [
 ];
 
 const ALL_CITIES = '__all__';
+
+/** From app.json `version`, so bumping the version there updates the footer. */
+const APP_VERSION = Constants.expoConfig?.version ?? '';
 
 /**
  * Test summary — the screen that replaces the spreadsheet's `סיכום` pivot tab.
@@ -373,6 +377,9 @@ export default function SummaryScreen() {
         </Pressable>
       </View>
 
+      <AppText size="xs" color={colors.textFaint} align="center" style={styles.footer}>
+        {strings.footer(APP_VERSION)}
+      </AppText>
     </SafeAreaView>
   );
 }
@@ -539,6 +546,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
   },
+  footer: { paddingTop: 2, paddingBottom: spacing.xs, backgroundColor: colors.bg },
   bottomBar: {
     flexDirection: 'row',
     gap: 10,

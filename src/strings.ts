@@ -174,6 +174,9 @@ export const strings = {
     deleteConfirmBody: 'למחוק את המבחן? לא ניתן לבטל.',
   },
 
+  /** Copyright line under the main screen's action bar. */
+  footer: (version: string) => `© 2026 KhTech · גרסה ${version}`,
+
   common: {
     cancel: 'ביטול',
     delete: 'מחיקה',
